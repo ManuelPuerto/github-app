@@ -20,6 +20,15 @@ interface IssueRow {
   url: string;
 }
 
+interface GitHubIssue {
+  title?: string;
+  state?: string;
+  body?: string | null;
+  html_url?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 function valueOfParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -44,25 +53,61 @@ async function loadIssues() {
       take: 200,
     });
 
-    return bounties.map<IssueRow>((bounty) => {
-      const repository = `${bounty.repository.owner}/${bounty.repository.repo}`;
-      const amount = Number(bounty.amount);
+    return Promise.all(
+      bounties.map<Promise<IssueRow>>(async (bounty) => {
+        const repository = `${bounty.repository.owner}/${bounty.repository.repo}`;
+        const amount = Number(bounty.amount);
+        const githubIssue = await fetchGitHubIssue(
+          repository,
+          bounty.issueNumber,
+        );
+        const bodyExcerpt = githubIssue?.body
+          ? githubIssue.body.replace(/\s+/g, " ").trim().slice(0, 160)
+          : "";
 
-      return {
-        id: bounty.id,
-        title: `Issue #${bounty.issueNumber}`,
-        repository,
-        amount,
-        currency: bounty.currency,
-        status: bounty.status.replaceAll("_", " "),
-        createdAt: bounty.createdAt,
-        updatedAt: bounty.updatedAt,
-        excerpt: `Bounty detected from label ${bounty.labelName}.`,
-        url: `https://github.com/${repository}/issues/${bounty.issueNumber}`,
-      };
-    });
+        return {
+          id: bounty.id,
+          title: githubIssue?.title ?? `Issue #${bounty.issueNumber}`,
+          repository,
+          amount,
+          currency: bounty.currency,
+          status: (githubIssue?.state ?? bounty.status).replaceAll("_", " "),
+          createdAt: githubIssue?.created_at
+            ? new Date(githubIssue.created_at)
+            : bounty.createdAt,
+          updatedAt: githubIssue?.updated_at
+            ? new Date(githubIssue.updated_at)
+            : bounty.updatedAt,
+          excerpt:
+            bodyExcerpt || `Bounty detected from label ${bounty.labelName}.`,
+          url:
+            githubIssue?.html_url ??
+            `https://github.com/${repository}/issues/${bounty.issueNumber}`,
+        };
+      }),
+    );
   } catch {
     return [];
+  }
+}
+
+async function fetchGitHubIssue(repository: string, issueNumber: number) {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${repository}/issues/${issueNumber}`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "pvium-github-app",
+        },
+        next: { revalidate: 60 },
+      },
+    );
+
+    if (!response.ok) return null;
+    return (await response.json()) as GitHubIssue;
+  } catch {
+    return null;
   }
 }
 
