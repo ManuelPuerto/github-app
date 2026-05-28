@@ -4,6 +4,14 @@ Reward GitHub contributors with Pvium payment links. Maintainers label bounty
 issues, contributors close them with pull requests, and Pvium handles the
 invite, payment link, funded webhook, and paid status updates.
 
+## Issue Discovery
+
+The homepage at `/` lists connected bounty issues across installed repositories.
+Use it to sort by recent activity or highest payout, filter by minimum bounty,
+and open the source GitHub issue.
+
+The deployment and webhook setup guide is available at `/deploy`.
+
 ## Flow
 
 1. A repository owner installs the GitHub App.
